@@ -7,6 +7,8 @@
     <meta name="viewport" content="width=device-width" />
     <meta name="license" content="
         Copyright 2013 Google, Abram Hindle
+
+        Copyright 2020 Dylan Alcock
         
         Licensed under the Apache License, Version 2.0 (the "License");
         you may not use this file except in compliance with the License.
@@ -55,7 +57,18 @@ function drawCircle(context,entity) {
         fillStyle = entity["colour"];
         strokeStyle = fillStyle;
         arc(x, y, (entity["radius"])?entity["radius"]:50, 0, 2.0 * Math.PI, false);  
-        stroke();                                
+        stroke();
+
+        //mirror drawing
+        beginPath();              
+        lineWidth = 3;
+        var x = entity["x"];
+        var y = entity["y"];
+        //moveTo(x,y);
+        fillStyle = entity["colour"];
+        strokeStyle = fillStyle;
+        arc(W - x, H - y, (entity["radius"])?entity["radius"]:50, 0, 2.0 * Math.PI, false);  
+        stroke();                          
     }
 }
 
@@ -125,6 +138,7 @@ function addEntity(entity, data) {
     world[entity] = data;
     drawNextFrame(); // (but should we?)
     //XXX: Send a XHTML Request that updates the entity you just modified!
+    sendJSONXMLHTTPRequest("/entity/" + encodeURIComponent(entity), data, function() { });
 }
 var counter = 0;
 function addEntityWithoutName(data) {
@@ -228,18 +242,23 @@ mouse = (function() {
     return self;
 })();
 
+function getColour() {
+    //REF: https://stackoverflow.com/questions/1484506/random-color-generator#comment6801353_5365036
+    return '#'+(Math.random()*0xFFFFFF<<0).toString(16);
+}
+
 // Add the application specific mouse listeners!
 //XXX: TODO Make these prettier!
 mouse.mousedowners.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'blue'});
+    addEntityWithoutName({'x':x,'y':y,'colour':getColour()});
 });
 
 mouse.mouseuppers.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'red'});
+    addEntityWithoutName({'x':x,'y':y,'colour':getColour()});
 });
 
 mouse.mousedraggers.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'green',
+    addEntityWithoutName({'x':x,'y':y,'colour':getColour(),
                           'radius':10});
 });
 
@@ -254,6 +273,7 @@ function wsSetup() {
     socket = new WebSocket(url);
     socket.onopen = function() {
         //XXX: TODO What are you going to do here?
+        socket.send(JSON.stringify("new socket"));
     };
     socket.onerror = function(msg) {
         debug("WebSocket Error:" + msg.data);
@@ -261,7 +281,12 @@ function wsSetup() {
     socket.onmessage = function(msg) {  
         try {
             debug("WebSocket Recv:" + msg.data);
-            //XXX: TODO What are you going to do here?            
+            //XXX: TODO What are you going to do here?
+            var new_world = JSON.parse(msg.data)
+            for(var entity in new_world) {
+                world[entity] = new_world[entity];
+            }
+            drawNextFrame();            
         } catch (e) {
             alert("socket on message: " + e);
         }
