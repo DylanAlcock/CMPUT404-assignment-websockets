@@ -65,6 +65,16 @@ def set_listener( entity, data ):
     ''' do something with the update ! '''
 
 myWorld.add_set_listener( set_listener )
+
+class Client:
+    def __init__(self):
+        self.queue = queue.Queue()
+
+    def put(self, v):
+        self.queue.put_nowait(v)
+
+    def get(self):
+        return self.queue.get()
         
 @app.route('/')
 def hello():
@@ -74,15 +84,19 @@ def hello():
 def read_ws(ws,client):
     '''A greenlet function that reads from the websocket and updates the world'''
     # XXX: TODO IMPLEMENT ME
-    for message in ws.read():
-        if message is not None:
-            changes = json.loads(message);
-            if changes == "new socket":
-                ws.send(jsonify(myWorld.world()))
+    try:
+        while True:
+            msg = ws.receive()
+            print("WS RECV: %s" % msg)
+            if (msg is not None):
+                packet = json.loads(msg)
+                for entity in packet:
+                    myWorld.set(entity, packet[entity])
+
             else:
-                for entity in changes:
-                    myWorld.set(entity, changes[entity])
-    return None
+                break
+    except:
+        '''Done'''
 
 @sockets.route('/subscribe')
 def subscribe_socket(ws):
@@ -91,13 +105,17 @@ def subscribe_socket(ws):
     # XXX: TODO IMPLEMENT ME
     client = Client()
     clients.append(client)
-    thread = gevent.spawn(read_ws, ws, client)
-
-    while True:
-        message = client.get()
-        ws.send(message)
-    
-    return None
+    g = gevent.spawn( read_ws, ws, client )    
+    try:
+        while True:
+            # block here
+            message = client.get()
+            ws.send(message)
+    except Exception as e:# WebSocketError as e:
+        print("WS Error %s" % e)
+    finally:
+        clients.remove(client)
+        gevent.kill(g)
 
 
 # I give this to you, this is how you get the raw body/data portion of a post in flask
