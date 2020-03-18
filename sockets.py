@@ -59,10 +59,16 @@ class World:
     def world(self):
         return self.space
 
-myWorld = World()        
+myWorld = World()
+
+clients = list()     
 
 def set_listener( entity, data ):
     ''' do something with the update ! '''
+    entities = {}
+    entities[entity] = data
+    for client in clients:
+        client.put(json.dumps(entities))
 
 myWorld.add_set_listener( set_listener )
 
@@ -81,6 +87,7 @@ def hello():
     '''Return something coherent here.. perhaps redirect to /static/index.html '''
     return redirect(url_for('static', filename = 'index.html'))
 
+#REF: https://github.com/uofa-cmput404/cmput404-slides/blob/master/examples/WebSocketsExamples/broadcaster.py
 def read_ws(ws,client):
     '''A greenlet function that reads from the websocket and updates the world'''
     # XXX: TODO IMPLEMENT ME
@@ -90,8 +97,11 @@ def read_ws(ws,client):
             print("WS RECV: %s" % msg)
             if (msg is not None):
                 packet = json.loads(msg)
-                for entity in packet:
-                    myWorld.set(entity, packet[entity])
+                if (packet == "new ws"):
+                    ws.send(jsonify(myWorld.world()))
+                else:
+                    for entity in packet:
+                        myWorld.set(entity, packet[entity])
 
             else:
                 break
